@@ -1420,3 +1420,62 @@ telebot.apihelper.ApiException: A request to the Telegram API was unsuccessful. 
 
 ERROR:TeleBot:A request to the Telegram API was unsuccessful. The server returned HTTP 400 Bad Request. Response body:
 [b'{"ok":false,"error_code":400,"description":"Bad Request: message to delete not found"}']
+ERROR:TeleBot:ReadTimeout occurred, args=(ReadTimeoutError("HTTPSConnectionPool(host='api.telegram.org', port=443): Read timed out. (read timeout=30)"),)
+Traceback (most recent call last):
+  File "B:\programers_files\Projects\CineSearch\TgBot\venv\lib\site-packages\urllib3\connectionpool.py", line 387, in _make_request
+    six.raise_from(e, None)
+  File "<string>", line 2, in raise_from
+  File "B:\programers_files\Projects\CineSearch\TgBot\venv\lib\site-packages\urllib3\connectionpool.py", line 383, in _make_request
+    httplib_response = conn.getresponse()
+  File "C:\Users\Petr\Anaconda3\lib\http\client.py", line 1321, in getresponse
+    response.begin()
+  File "C:\Users\Petr\Anaconda3\lib\http\client.py", line 296, in begin
+    version, status, reason = self._read_status()
+  File "C:\Users\Petr\Anaconda3\lib\http\client.py", line 257, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+  File "C:\Users\Petr\Anaconda3\lib\socket.py", line 589, in readinto
+    return self._sock.recv_into(b)
+  File "B:\programers_files\Projects\CineSearch\TgBot\venv\lib\site-packages\urllib3\contrib\pyopenssl.py", line 317, in recv_into
+    raise timeout('The read operation timed out')
+socket.timeout: The read operation timed out
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "B:\programers_files\Projects\CineSearch\TgBot\venv\lib\site-packages\requests\adapters.py", line 449, in send
+    timeout=timeout
+  File "B:\programers_files\Projects\CineSearch\TgBot\venv\lib\site-packages\urllib3\connectionpool.py", line 641, in urlopen
+    _stacktrace=sys.exc_info()[2])
+  File "B:\programers_files\Projects\CineSearch\TgBot\venv\lib\site-packages\urllib3\util\retry.py", line 368, in increment
+    raise six.reraise(type(error), error, _stacktrace)
+  File "B:\programers_files\Projects\CineSearch\TgBot\venv\lib\site-packages\urllib3\packages\six.py", line 686, in reraise
+    raise value
+  File "B:\programers_files\Projects\CineSearch\TgBot\venv\lib\site-packages\urllib3\connectionpool.py", line 603, in urlopen
+    chunked=chunked)
+  File "B:\programers_files\Projects\CineSearch\TgBot\venv\lib\site-packages\urllib3\connectionpool.py", line 389, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+  File "B:\programers_files\Projects\CineSearch\TgBot\venv\lib\site-packages\urllib3\connectionpool.py", line 307, in _raise_timeout
+    raise ReadTimeoutError(self, url, "Read timed out. (read timeout=%s)" % timeout_value)
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='api.telegram.org', port=443): Read timed out. (read timeout=30)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "B:\programers_files\Projects\CineSearch\TgBot\venv\lib\site-packages\telebot\util.py", line 59, in run
+    task(*args, **kwargs)
+  File "B:\programers_files\Projects\CineSearch\TgBot\venv\lib\site-packages\telebot\__init__.py", line 276, in __retrieve_updates
+    updates = self.get_updates(offset=(self.last_update_id + 1), timeout=timeout)
+  File "B:\programers_files\Projects\CineSearch\TgBot\venv\lib\site-packages\telebot\__init__.py", line 246, in get_updates
+    json_updates = apihelper.get_updates(self.token, offset, limit, timeout, allowed_updates)
+  File "B:\programers_files\Projects\CineSearch\TgBot\venv\lib\site-packages\telebot\apihelper.py", line 180, in get_updates
+    return _make_request(token, method_url, params=payload)
+  File "B:\programers_files\Projects\CineSearch\TgBot\venv\lib\site-packages\telebot\apihelper.py", line 54, in _make_request
+    timeout=(connect_timeout, read_timeout), proxies=proxy)
+  File "B:\programers_files\Projects\CineSearch\TgBot\venv\lib\site-packages\requests\sessions.py", line 533, in request
+    resp = self.send(prep, **send_kwargs)
+  File "B:\programers_files\Projects\CineSearch\TgBot\venv\lib\site-packages\requests\sessions.py", line 646, in send
+    r = adapter.send(request, **kwargs)
+  File "B:\programers_files\Projects\CineSearch\TgBot\venv\lib\site-packages\requests\adapters.py", line 529, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='api.telegram.org', port=443): Read timed out. (read timeout=30)
+

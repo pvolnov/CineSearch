@@ -10,6 +10,8 @@ from telebot.types import InputMediaPhoto, InputMediaVideo
 from config import TELEGRAM_TOKEN
 
 sys.path.append('../')
+sys.path.append('./')
+
 from models import *
 import telebot
 from telebot import types
