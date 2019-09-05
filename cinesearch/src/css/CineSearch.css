@@ -1,0 +1,49 @@
+@keyframes start {
+    from {
+        opacity: 0.1;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.cs {
+    animation: start 1s ease;
+}
+
+.FilmBox {
+    margin: 20px;
+    border-radius: 10px;
+    animation: start 1s ease;
+
+    transition: transform 0.2s;
+}
+
+.MoveFilmBox {
+    box-shadow: 0.5em 0.5em 6px rgba(122, 122, 122, 0.4);
+    transition: none;
+}
+
+.FilmBoxDel {
+    box-shadow: 0.2em 0.2em 6px 6px rgb(188, 0, 1);
+    /*border: rgb(188, 0, 1) 2px solid ;*/
+}
+
+.FilmBoxDeleted {
+    transform: scale(0);
+    margin-top: 200px;
+    transition: all 0.2s;
+
+}
+
+.FilmBoxShowed {
+    box-shadow: 0.2em 0.2em 6px 6px rgb(69, 82, 156);
+}
+
+.FilmBoxLike {
+    box-shadow: 0.2em 0.2em 6px 6px rgb(0, 156, 1);
+}
+
+.header {
+    text-align: center;
+}

@@ -1,0 +1,15 @@
+body {
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
+    monospace;
+}
+.fixed {
+  position:fixed; /*позицианируем чтобы исчез скролл*/
+  width:100%; /*что бы верстка не складывалась по ширине*/
+  overflow: hidden;
+}
