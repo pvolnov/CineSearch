@@ -10,7 +10,11 @@ class Users(Model):
     name = TextField()
     nicname = TextField(null=True)
     ustatus=IntegerField(default=0)
+    age=IntegerField(default=20)
+    sex=IntegerField(default=0)
+    ganres=JSONField(default={})
     info=JSONField(default={})
+    last_visit=DateField(null=True)
 
     cms=IntegerField(default=0)
     cfid=IntegerField(default=0)
@@ -34,9 +38,20 @@ class Films(Model):
     youtube=TextField(default="")
     stars = FloatField(default=0)
     info=JSONField(default={})
+    level=IntegerField(default=0)
     selections=ArrayField(IntegerField,default=[])
-    likes=IntegerField(default=0)
-    dislikes=IntegerField(default=0)
+    year=IntegerField(default=2000)
+
+    ganres=ArrayField(IntegerField,default=[])
+    meanage=FloatField(default=20)
+    sex=FloatField(default=0.5)
+
+    likes=IntegerField(default=10)
+    dislikes=IntegerField(default=10)
+    shit=IntegerField(default=0)
+    errors=IntegerField(default=0)
+    opening=IntegerField(default=0)
+    treilers=IntegerField(default=0)
 
     class Meta:
         database = db
@@ -52,11 +67,47 @@ class Selections(Model):
         database = db
         db_table='Selections'
 
+class Messages(Model):
+    mes_id = TextField(unique=True)
+    text = TextField(default="")
+    reply_markup = JSONField(default={})
+    user = IntegerField(default=0)
+    btime = DateField(null=True)
+
+    class Meta:
+        database = db
+        db_table='Messages'
+
+class Config(Model):
+    name = TextField()
+    value = TextField()
+    json=JSONField(default={})
+
+    class Meta:
+        database = db
+        db_table='Config'
+
+class Dataset(Model):
+    user_value = JSONField()
+    film_value = JSONField()
+    result = IntegerField(default=0)
+    data = DateField()
+
+    class Meta:
+        database = db
+        db_table='Dataset'
+
 # Selections.drop_table()
 # Films.drop_table()
 # Users.drop_table()
+# Config.drop_table()
+# Messages.drop_table()
+
 
 Selections.create_table()
 Films.create_table()
 Users.create_table()
+Config.create_table()
+Messages.create_table()
+Dataset.create_table()
 
