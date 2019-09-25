@@ -15,9 +15,11 @@ class Users(Model):
     ganres=JSONField(default={})
     info=JSONField(default={})
     last_visit=DateField(null=True)
+    mark_wight=FloatField(default=0)
+    just_marked = IntegerField(default=1)
 
     cms=IntegerField(default=0)
-    cfid=IntegerField(default=0)
+    cfid=IntegerField(default=-1)
     cfmes=IntegerField(default=0)
     ctmes=IntegerField(default=0)
     liked=ArrayField(IntegerField,default=[])

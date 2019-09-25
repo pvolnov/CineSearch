@@ -3,6 +3,7 @@ import json
 import os
 import re
 import sys
+from cmath import sqrt
 
 from playhouse.shortcuts import model_to_dict
 
@@ -113,7 +114,7 @@ def send_film(film_id, message_id, edit=0):
     return m.message_id
 
 
-def send_film_collection(films_ids, message_id,cfmes):
+def send_film_collection(films_ids, message_id, cfmes):
     markup = types.InlineKeyboardMarkup(row_width=2)
     buttons = []
     marks = {}
@@ -136,7 +137,8 @@ def send_film_collection(films_ids, message_id,cfmes):
                 reply_markup=markup,
                 message_id=cfmes
             )
-            Messages.update({"reply_markup":marks}).where(Messages.mes_id==str(message_id) + "_" + str(cfmes)).execute()
+            Messages.update({"reply_markup": marks}).where(
+                Messages.mes_id == str(message_id) + "_" + str(cfmes)).execute()
             return cfmes
         except:
             logger.info("Cant edit list of films")
@@ -149,6 +151,17 @@ def send_film_collection(films_ids, message_id,cfmes):
     Messages.create(mes_id=str(m.chat.id) + "_" + str(m.message_id), text=text, reply_markup=marks)
 
     return m.message_id
+
+
+def vcos(a, b):
+    ch = 0
+    znA = 0
+    znB = 0
+    for c in zip(a, b):
+        ch += c[0] * c[1]
+        znA += c[0] * c[0]
+        znB += c[1] * c[1]
+    return ch / ((znA ** 0.5) * (znB ** 0.5))
 
 
 def predict_film_list(tel_id):
@@ -197,6 +210,23 @@ def predict_film_list(tel_id):
             if g in ganres:
                 gcount += u.ganres[g]
 
+        g1 = {}
+        for g in o.ganres:
+            g1[str(g)] = 1
+
+        g2 = u.ganres
+        for i in range(25):
+            if str(i) not in g1:
+                g1[str(i)] = 0
+            if str(i) not in g2:
+                g2[str(i)] = 0
+
+        g1 = [t[1] for t in sorted(g1.items(), key=lambda kv: int(kv[0]))]
+        g2 = [t[1] for t in sorted(g2.items(), key=lambda kv: int(kv[0]))]
+
+        dcos = vcos(g1, g2)
+
+        predict[o.film_id] += (1 - dcos) * int(CONFIG["WEIGHT_COS"])
         predict[o.film_id] += gcount * int(CONFIG["WEIGHT_GANRE"])  # доля жанров фильма в наших фаворитах
         predict[o.film_id] += scount * int(CONFIG["WEIGHT_SELECTION"])  # доля любимых коллеекций среди фильмов
         predict[o.film_id] += o.stars * int(CONFIG["WEIGHT_STARS"])
@@ -253,7 +283,7 @@ def next_films_collections(u):
     if len(u.predict_films) < 8:
         u.predict_films += predict_film_list(u.tel_id)
 
-    u.cfmes = send_film_collection(u.predict_films[:8], u.tel_id,u.cfmes)
+    u.cfmes = send_film_collection(u.predict_films[:8], u.tel_id, u.cfmes)
     u.predict_films = u.predict_films[8:]
 
     return u
@@ -298,13 +328,23 @@ def likefilm(call):
     fid = int(call.data.split("_")[1])
     u = Users.get(Users.tel_id == call.message.chat.id)
 
-    if fid == -1:
+    if len(u.viewed) >= 8:
+        u.ustatus = 1
+        bot.delete_message(chat_id=call.message.chat.id,
+                           message_id=call.message.message_id)
+        bot.send_message(call.message.chat.id,
+                         "Настройка алгоритма окончена, теперь бот работает в штатном режиме,"
+                         " чтобы вернуться в главное меню отпрвьте команду /menu",
+                         reply_markup=base_keyboard_search)
+        u = next_film(u)
+
+    elif fid == -1:
         mes = Messages.get_or_none(Messages.mes_id == str(call.message.chat.id) + "_" + str(call.message.message_id))
         ids = [id.split("_")[1] for id in mes.reply_markup.keys()]
         films = Films.select().where(Films.film_id.in_(ids)).execute()
         for f in films:
-            u.disliked.append(u.cfid)
-            f.stars = (f.stars * (f.likes + f.dislikes) + 2) / (f.likes + 1)
+            u.disliked.append(f.film_id)
+            f.stars = (f.stars * (f.likes + f.dislikes) + f.stars-3) / (f.likes + f.dislikes + 1)
             f.dislikes += 1
 
             for sel in f.selections:
@@ -313,65 +353,53 @@ def likefilm(call):
                 else:
                     u.selections[sel] = -1
             f.save()
-
-
-        if len(u.viewed) >= 8:
-            u.ustatus = 1
-            bot.delete_message(chat_id=call.message.chat.id,
-                               message_id=call.message.message_id)
-            bot.send_message(call.message.chat.id,
-                             "Настройка алгоритма окончена, теперь бот работает в штатном режиме,"
-                             " чтобы вернуться в главное меню отпрвьте команду /menu",
-                             reply_markup=base_keyboard_search)
-            u = next_film(u)
-        else:
             u = next_films_collections(u)
-
         f.save()
         u.save()
         return
+    else:
+        film = Films.get_or_none(Films.film_id == fid)
+        film.likes += 1
 
-    film = Films.get_or_none(Films.film_id == fid)
-    film.likes += 1
+        for g in film.ganres:
+            if g in u.ganres:
+                u.ganres[g] += 2
+            else:
+                u.ganres[g] = 2
 
-    for g in film.ganres:
-        if g in u.ganres:
-            u.ganres[g] += 2
-        else:
-            u.ganres[g] = 2
+        for s in film.selections:
+            if s in u.selections:
+                u.selections[g] += 2
+            else:
+                u.selections[g] = 2
+        u.viewed.append(film.film_id)
 
-    for s in film.selections:
-        if s in u.selections:
-            u.selections[g] += 2
-        else:
-            u.selections[g] = 2
-    u.viewed.append(film.film_id)
+        film.save()
 
-    film.save()
+        mes = Messages.get_or_none(Messages.mes_id == str(call.message.chat.id) + "_" + str(call.message.message_id))
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        buttons = []
+        mes.text += "\n<b>" + mes.reply_markup[call.data] + "</b>"
+        del mes.reply_markup[call.data]
 
-    mes = Messages.get_or_none(Messages.mes_id == str(call.message.chat.id) + "_" + str(call.message.message_id))
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    buttons = []
-    mes.text += "\n<b>" + mes.reply_markup[call.data] + "</b>"
-    del mes.reply_markup[call.data]
+        for m in mes.reply_markup:
+            buttons.append(types.InlineKeyboardButton(text=mes.reply_markup[m], callback_data=m))
+        buttons.append(types.InlineKeyboardButton(text=BTN_THEN, callback_data="like_-1"))
+        mes.save()
 
-    for m in mes.reply_markup:
-        buttons.append(types.InlineKeyboardButton(text=mes.reply_markup[m], callback_data=m))
-    buttons.append(types.InlineKeyboardButton(text=BTN_THEN, callback_data="like_-1"))
-    mes.save()
+        markup.add(*buttons)
+        try:
+            bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                text=mes.text,
+                parse_mode="HTML",
+                reply_markup=markup,
+                message_id=call.message.message_id
+            )
+        except:
+            logger.info("Can't edit message")
+            u = next_films_collections(u)
 
-    markup.add(*buttons)
-    try:
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            text=mes.text,
-            parse_mode="HTML",
-            reply_markup=markup,
-            message_id=call.message.message_id
-        )
-    except:
-        logger.error("Can't edit message")
-        next_films_collections(u)
     u.save()
     bot.answer_callback_query(call.id, text="Фильм добавлен")
     return True
@@ -593,6 +621,7 @@ def repeat_all_messages(message):
         return
 
     logger.info(u.name + " " + message.text)
+    u.last_visit = datetime.now()
 
     if u.cms == 0:
         if message.text == CONFIG["INVITE_PASS"]:
@@ -615,7 +644,8 @@ def repeat_all_messages(message):
             if u.age > 0 and u.age < 102:
                 u.cms = 2
                 u.save()
-                bot.send_message(message.chat.id, "Ваш ответ принят, выбирите дальнейшее действие", reply_markup=base_keyboard_menu)
+                bot.send_message(message.chat.id, "Ваш ответ принят, выбирите дальнейшее действие",
+                                 reply_markup=base_keyboard_menu)
             else:
                 bot.send_message(message.chat.id, PARSING_ERROR)
         except:
@@ -654,7 +684,11 @@ def repeat_all_messages(message):
             bot.send_message(message.chat.id, "Список понравившихся фильмов пуст")
 
     elif message.text in [BTN_1_SEARCH, BTN_S_SEARCH, BTN_2_SEARCH, BTN_3_SEARCH] and u.cms == 3:
+        if u.cfid == 0:
+            alarm(str(u.tel_id) + " Cfid is 0!")
+
         f = Films.get(Films.film_id == u.cfid)
+        mark_wight = 1.5 - u.mark_wight / 2
 
         if message.text == BTN_3_SEARCH or message.text == BTN_2_SEARCH:
 
@@ -678,7 +712,7 @@ def repeat_all_messages(message):
 
             f.meanage = (f.meanage * f.likes + u.age) / (f.likes + 1)
             f.sex = (f.sex * f.likes + u.sex) / (f.likes + 1)
-            f.stars = (f.stars * (f.likes + f.dislikes) + 10) / (f.likes + 1)
+            f.stars = (f.stars * (f.likes + f.dislikes) + 10 * mark_wight) / (f.likes + f.dislikes + 1)
             f.likes += 1
             f.selections.append(u.tel_id)
             Dataset.create(data=datetime.now(), user_value=model_to_dict(u),
@@ -686,15 +720,18 @@ def repeat_all_messages(message):
 
         if message.text == BTN_2_SEARCH:
             u.viewed.append(u.cfid)
+            u.mark_wight = (u.mark_wight * u.just_marked + 2) / (u.just_marked + 1)
             f.shit -= 1
 
         if message.text == BTN_3_SEARCH:
             u.liked.append(u.cfid)
+            u.mark_wight = (u.mark_wight * u.just_marked + 1) / (u.just_marked + 1)
 
         if message.text == BTN_1_SEARCH or message.text == BTN_S_SEARCH:
             u.disliked.append(u.cfid)
-            f.stars = (f.stars * (f.likes + f.dislikes) + 3.5) / (f.likes + 1)
+            f.stars = (f.stars * (f.likes + f.dislikes) + 3.5 * mark_wight) / (f.likes + f.dislikes + 1)
             f.dislikes += 1
+            u.mark_wight = (u.mark_wight * u.just_marked + -1) / (u.just_marked + 1)
 
             for sel in f.selections:
                 if sel in u.selections:
@@ -713,7 +750,8 @@ def repeat_all_messages(message):
 
         if message.text == BTN_S_SEARCH:
             f.shit += 2
-            f.stars = (f.stars * (f.likes + f.dislikes) + 1) / (f.likes + 1)
+            f.stars = (f.stars * (f.likes + f.dislikes) + 1 * mark_wight) / (f.likes + f.dislikes + 1)
+            u.mark_wight = (u.mark_wight * u.just_marked - 2) / (u.just_marked + 1)
 
         u = next_film(u, True)
         f.save()
@@ -722,7 +760,7 @@ def repeat_all_messages(message):
                            message_id=message.message_id)
 
     elif message.text == AUTO_KILL:
-        bot.send_message(message.chat.id,"Выключение")
+        bot.send_message(message.chat.id, "Выключение")
         logger.info("Off")
         exit(0)
 
@@ -739,6 +777,7 @@ def repeat_all_messages(message):
 # Main Fanction
 
 if __name__ == '__main__':
+
     if "SERVER" in os.environ:
         logger.info("Starting on server")
     else:
