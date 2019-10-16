@@ -6,6 +6,9 @@ import sys
 from cmath import sqrt
 
 from playhouse.shortcuts import model_to_dict
+from telebot.apihelper import ApiException
+
+from Predicting import get_group
 
 sys.path.append('../')
 sys.path.append('./')
@@ -95,21 +98,38 @@ def send_film(film_id, message_id, edit=0):
                                    message_id=edit,
                                    reply_markup=markup)
 
-            bot.edit_message_caption(chat_id=message_id,
-                                     message_id=edit,
-                                     caption=text,
-                                     parse_mode="HTML",
-                                     reply_markup=markup)
+            try:
+                bot.edit_message_caption(chat_id=message_id,
+                                         message_id=edit,
+                                         caption=text,
+                                         parse_mode="HTML",
+                                         reply_markup=markup)
+            except ApiException as tge:
+                logger.info("Bad text parsing" + str(tge))
+                text = text.replace("</b>", "").replace("<b>", "").replace("</br>", "\n")
+                bot.edit_message_caption(chat_id=message_id,
+                                         message_id=edit,
+                                         caption=text,
+                                         reply_markup=markup)
 
-            return (edit)
+            return edit
         except:
             logger.error("Can't edit message")
 
-    m = bot.send_photo(chat_id=message_id,
-                       photo=film.img,
-                       parse_mode="HTML",
-                       caption=text,
-                       reply_markup=markup)
+    try:
+        m = bot.send_photo(chat_id=message_id,
+                           photo=film.img,
+                           parse_mode="HTML",
+                           caption=text,
+                           reply_markup=markup)
+    except ApiException as tge:
+        logger.info("Bad Film")
+        logger.error(str(tge))
+        text = text.replace("</b>", "").replace("<b>", "").replace("</br>", "\n")
+        m = bot.send_photo(chat_id=message_id,
+                           photo="https://diamedica.by/uploads/no-image.jpg",
+                           caption=text,
+                           reply_markup=markup)
 
     return m.message_id
 
@@ -129,7 +149,7 @@ def send_film_collection(films_ids, message_id, cfmes):
 
     markup.add(*buttons)
 
-    text = "Выбери фильмы, которые ты смотрел или хотел бы посмотреть."
+    text = "Выбери фильмы, которые ты смотрел или точно знаешь, что хотел бы посмотреть."
     if cfmes > 0:
         try:
             bot.edit_message_reply_markup(
@@ -140,14 +160,13 @@ def send_film_collection(films_ids, message_id, cfmes):
             Messages.update({"reply_markup": marks}).where(
                 Messages.mes_id == str(message_id) + "_" + str(cfmes)).execute()
             return cfmes
-        except:
-            logger.info("Cant edit list of films")
-            pass
+        except Exception as e:
+            logger.info("Cant edit list of films "+str(e))
+
     m = bot.send_message(chat_id=message_id,
                          parse_mode="HTML",
                          text=text,
                          reply_markup=markup)
-    print(m.chat.id * 100000 + m.message_id)
     Messages.create(mes_id=str(m.chat.id) + "_" + str(m.message_id), text=text, reply_markup=marks)
 
     return m.message_id
@@ -161,6 +180,8 @@ def vcos(a, b):
         ch += c[0] * c[1]
         znA += c[0] * c[0]
         znB += c[1] * c[1]
+    if ch == 0:
+        return 1
     return ch / ((znA ** 0.5) * (znB ** 0.5))
 
 
@@ -168,82 +189,78 @@ def predict_film_list(tel_id):
     import numpy as np
     import random
     dtime = datetime.now()
-
+    options = []
     u = Users.get(Users.tel_id == tel_id)
 
-    if u.ustatus > 0:
+    if u.group >= 0:
+
+        similar_users = Users.select(Users.liked, Users.viewed).where(Users.group == u.group).execute()
+
+        for us in similar_users:
+            for f in us.liked:
+                options.append(f)
+            for f in us.viewed:
+                options.append(f)
+        options = Films.select().where((Films.film_id.in_(options)) & (Films.film_id.not_in(u.liked))
+                                       & (Films.film_id.not_in(u.viewed)) & (Films.shit < 10) & (
+                                           Films.film_id.not_in(u.disliked))).limit(100).execute()
+
+    if u.ustatus > 0 and len(options) < 30:
         pb = np.array(list(u.selections.values()), dtype='float')
         pb *= pb > 0
         pb /= pb.sum()
-        selections = np.random.choice(list(u.selections.keys()), p=pb, size=15)
+        selections = np.random.choice(list(u.selections.keys()), p=pb, size=25)
         selections = [s.item() for s in selections]
 
         options = Films.select().where(
             (Films.selections.contains_any(selections)) & (Films.film_id.not_in(u.liked))
             & (Films.film_id.not_in(u.viewed)) & (Films.shit < 10) & (Films.film_id.not_in(u.disliked))).order_by(
-            Films.stars,
-            Films.likes).limit(100).execute()
+            Films.stars.desc(),
+            Films.likes.desc()).limit(100).execute()
 
     if u.ustatus == 0:
         options = Films.select().where(
-            (Films.level > 1) & (Films.film_id.not_in(u.liked)) & (Films.stars > 9)
+            (Films.level >= 1) & (Films.film_id.not_in(u.liked)) & (Films.stars > 8)
             & (Films.film_id.not_in(u.viewed)) & (Films.shit < 6) & (Films.film_id.not_in(u.disliked))).order_by(
-            Films.stars,
-            Films.likes).limit(100).execute()
+            Films.stars.desc(),
+            Films.likes.desc()).limit(30).execute()
 
-    predict = {}
-    sel_sum = sum(u.selections.values()) + 1  # mean selection priority
-    ganr_sum = sum(u.ganres.values()) + 1  # mean selection priority
+        logger.info("Quiq Predicting: " + str(datetime.now() - dtime))
+        return [o.film_id for o in options]
 
-    selections = {s: u.selections[s] / sel_sum for s in u.selections}
-    ganres = {g: u.ganres[g] / ganr_sum for g in u.ganres}
+    if len(options) < 20:
+        options = Films.select().where((Films.film_id.not_in(u.liked))
+                                       & (Films.film_id.not_in(u.viewed)) & (
+                                           Films.film_id.not_in(u.disliked))).order_by(Films.stars.desc(), Films.likes.desc()).limit(
+            100).execute()
 
+    datalist = []
+    ujson = model_to_dict(u)
+    ujson["last_visit"] = ""
     for o in options:  # all avilible films
-        predict[o.film_id] = 1
-        scount = 0
-        for s in o.selections:  # all users fun categories
-            if s in selections:  # film is in user`s fun group
-                scount += selections[s]  # how important is this group
+        dt = {
+            "user_value": ujson,
+            "film_value": model_to_dict(o),
+            "result": 0
+        }
+        datalist.append(dt)
+    logger.info("Datalist "+str(datalist[0]["user_value"]))
 
-        gcount = 0
-        for g in o.ganres:
-            if g in ganres:
-                gcount += u.ganres[g]
+    from Predicting import get_predict
+    prdiction = get_predict(datalist)
 
-        g1 = {}
-        for g in o.ganres:
-            g1[str(g)] = 1
-
-        g2 = u.ganres
-        for i in range(25):
-            if str(i) not in g1:
-                g1[str(i)] = 0
-            if str(i) not in g2:
-                g2[str(i)] = 0
-
-        g1 = [t[1] for t in sorted(g1.items(), key=lambda kv: int(kv[0]))]
-        g2 = [t[1] for t in sorted(g2.items(), key=lambda kv: int(kv[0]))]
-
-        dcos = vcos(g1, g2)
-
-        predict[o.film_id] += (1 - dcos) * int(CONFIG["WEIGHT_COS"])
-        predict[o.film_id] += gcount * int(CONFIG["WEIGHT_GANRE"])  # доля жанров фильма в наших фаворитах
-        predict[o.film_id] += scount * int(CONFIG["WEIGHT_SELECTION"])  # доля любимых коллеекций среди фильмов
-        predict[o.film_id] += o.stars * int(CONFIG["WEIGHT_STARS"])
-        predict[o.film_id] += 1 / (abs(o.meanage - u.age) + 1) * int(CONFIG["WEIGHT_AGE"])
-        predict[o.film_id] += 1 / (abs(o.sex - u.sex) * 10 + 1) * int(CONFIG["WEIGHT_SEX"])
-        predict[o.film_id] += (o.likes) / (o.likes + o.dislikes + 1) * int(CONFIG["WEIGHT_LIKE"])
-        predict[o.film_id] += (1 / (2020 - o.year)) * int(CONFIG["WEIGHT_YEAR"])
-        predict[o.film_id] -= o.shit * int(CONFIG["WEIGHT_YEAR"])
-        if o.year < 2000:
-            predict[o.film_id] -= 4
-
-    pb = np.array(list(predict.values()), dtype='float')
-    pb /= pb.sum()
-    pred = np.random.choice(list(predict.keys()), p=pb, size=20)
+    # pb = np.array(list(predict.values()), dtype='float')
+    # pb /= pb.sum()
+    # try:
+    #     predict = [int(p) for p in list(predict.keys())]
+    #     logger.info(predict)
+    #     pred = np.random.choice(predict, p=pb, size=20)
+    # except Exception as e:
+    #     logger.info("Ramdom choise error")
+    #     pred = predict[-20:]
 
     logger.info("Predicting: " + str(datetime.now() - dtime))
-    return list(set([p.item() for p in pred]))
+    return list(set([options[p].film_id for p in prdiction]))
 
 
 def next_film(u, edit=False):
@@ -285,7 +302,7 @@ def next_films_collections(u):
 
     u.cfmes = send_film_collection(u.predict_films[:8], u.tel_id, u.cfmes)
     u.predict_films = u.predict_films[8:]
-
+    logger.info("next_films_collections "+str(len(u.predict_films)))
     return u
 
 
@@ -321,6 +338,15 @@ def menu(message):
             u.save()
 
 
+@bot.message_handler(commands=['help'])
+def menu(message):
+    u = Users.get_or_none(Users.tel_id == message.chat.id)
+    if u != None:
+        u.cms = 5
+        bot.send_message(message.chat.id, HELP_TEXT)
+        u.save()
+
+
 @bot.callback_query_handler(
     func=lambda call: "like" in call.data)
 def likefilm(call):
@@ -328,7 +354,7 @@ def likefilm(call):
     fid = int(call.data.split("_")[1])
     u = Users.get(Users.tel_id == call.message.chat.id)
 
-    if len(u.viewed) >= 8:
+    if len(u.viewed) >= 5:
         u.ustatus = 1
         bot.delete_message(chat_id=call.message.chat.id,
                            message_id=call.message.message_id)
@@ -336,6 +362,7 @@ def likefilm(call):
                          "Настройка алгоритма окончена, теперь бот работает в штатном режиме,"
                          " чтобы вернуться в главное меню отпрвьте команду /menu",
                          reply_markup=base_keyboard_search)
+        u.group = get_group(u)
         u = next_film(u)
 
     elif fid == -1:
@@ -344,7 +371,7 @@ def likefilm(call):
         films = Films.select().where(Films.film_id.in_(ids)).execute()
         for f in films:
             u.disliked.append(f.film_id)
-            f.stars = (f.stars * (f.likes + f.dislikes) + f.stars-3) / (f.likes + f.dislikes + 1)
+            f.stars = (f.stars * (f.likes + f.dislikes) + f.stars - 3) / (f.likes + f.dislikes + 1)
             f.dislikes += 1
 
             for sel in f.selections:
@@ -353,7 +380,10 @@ def likefilm(call):
                 else:
                     u.selections[sel] = -1
             f.save()
-            u = next_films_collections(u)
+
+        logger.info("Next menu")
+        u = next_films_collections(u)
+
         f.save()
         u.save()
         return
@@ -379,8 +409,12 @@ def likefilm(call):
         mes = Messages.get_or_none(Messages.mes_id == str(call.message.chat.id) + "_" + str(call.message.message_id))
         markup = types.InlineKeyboardMarkup(row_width=2)
         buttons = []
-        mes.text += "\n<b>" + mes.reply_markup[call.data] + "</b>"
-        del mes.reply_markup[call.data]
+        if call.data in mes.reply_markup:
+            mes.text += "\n<b>" + mes.reply_markup[call.data] + "</b>"
+            del mes.reply_markup[call.data]
+        else:
+            mes.text += "\n"
+            logger.info("Error "+call.data)
 
         for m in mes.reply_markup:
             buttons.append(types.InlineKeyboardButton(text=mes.reply_markup[m], callback_data=m))
@@ -397,11 +431,44 @@ def likefilm(call):
                 message_id=call.message.message_id
             )
         except:
-            logger.info("Can't edit message")
-            u = next_films_collections(u)
+            try:
+                text = mes.text.replace("</b>", "").replace("<b>", "").replace("</br>", "\n")
+                bot.edit_message_text(
+                    chat_id=call.message.chat.id,
+                    text=text,
+                    reply_markup=markup,
+                    message_id=call.message.message_id
+                )
+            except:
+                logger.info("Can't edit message")
+                u = next_films_collections(u)
 
+    u.just_marked += 1
     u.save()
     bot.answer_callback_query(call.id, text="Фильм добавлен")
+    return True
+
+
+@bot.callback_query_handler(
+    func=lambda call: "checkvk" in call.data)
+def checkvk(call):
+    logger.info("checkvk " + str(call.message.chat.id))
+
+    u = Users.get(Users.tel_id == call.message.chat.id)
+    if u.vk_id > 0:
+        u.cms = 2
+        bot.delete_message(chat_id=call.message.chat.id,
+                           message_id=call.message.message_id)
+        bot.send_message(call.message.chat.id,
+                         "Авторизация успешно пройдена, больше мы Вас не побеспокоим",
+                         reply_markup=base_keyboard_menu)
+        u.save()
+
+    else:
+        bot.send_message(call.message.chat.id,
+                         "Сообщение от вас не обнаружено")
+
+    bot.answer_callback_query(call.id, text="")
     return True
 
 
@@ -425,7 +492,7 @@ def callback(call):
                 for i in film.info:
                     text += "<b>" + i + "</b>:  " + film.info[i] + "\n"
 
-                text = text[:1023]
+                text = text[:1000]
                 film.opening += 1
                 film.save()
                 markup = types.InlineKeyboardMarkup(row_width=2)
@@ -443,7 +510,14 @@ def callback(call):
                                              caption=text)
                 except Exception as e:
                     logger.error("Can't edit film" + str(e))
-                    answer_callback_query = "Слишком старый пост, не могу отредактировать"
+                    text = text.replace("</b>", "").replace("<b>", "").replace("</br>", "\n")
+                    try:
+                        bot.edit_message_caption(chat_id=call.message.chat.id,
+                                                 message_id=call.message.message_id,
+                                                 reply_markup=markup,
+                                                 caption=text)
+                    except:
+                        answer_callback_query = "Слишком старый пост, не могу отредактировать"
 
             if cal.find("film") >= 0:
                 film_id = cal.split("_")[1]
@@ -521,7 +595,7 @@ def callback(call):
                 u = Users.get(Users.tel_id == call.message.chat.id)
                 f = Films.get(Films.film_id == film_id)
                 scount = (Films.likes) + (Films.dislikes) - 1
-                f.stars = (f.stars * scount + stars) / (f.stars + 1)
+                f.stars = (f.stars * scount + stars) / (scount + 1)
 
                 for sel in f.selections:
                     if sel in u.selections:
@@ -570,8 +644,12 @@ def callback(call):
                     if film.youtube.find("watch") == -1 or film.errors % 7 == 1:
                         ypage = requests.get("https://www.youtube.com/results", params={"search_query": film.name}).text
                         ypage = BeautifulSoup(ypage, features="html.parser")
-                        film.youtube = "https://www.youtube.com" + \
-                                       ypage.find_all("a", href=re.compile("watch"))[film.errors // 7]["href"]
+                        ypage = ypage.find_all("a", href=re.compile("watch"))
+                        if len(ypage) == 0:
+                            film.youtube = "https://www.youtube.com"
+                        else:
+                            film.youtube = "https://www.youtube.com" + \
+                                           ypage[min(len(ypage) - 1, film.errors // 7)]["href"]
 
                     film.treilers += 1
                     film.save()
@@ -623,6 +701,14 @@ def repeat_all_messages(message):
     logger.info(u.name + " " + message.text)
     u.last_visit = datetime.now()
 
+    if u.cms == 5:
+        alarm(u.name + " need help: " + message.text)
+        bot.send_message(message.chat.id, "Отзыв добавлен, мы рассмотрим его в ближайшее время",
+                         reply_markup=base_keyboard_menu)
+        u.cms = 2
+        u.save()
+        return
+
     if u.cms == 0:
         if message.text == CONFIG["INVITE_PASS"]:
 
@@ -662,7 +748,7 @@ def repeat_all_messages(message):
         else:
             bot.send_message(message.chat.id,
                              text="Давай проведем экспресс подборку, чтобы настроить алгоритм под тебя. "
-                                  "Как только ты выберешь 8 фильмов, бот начнет работать в стандартном режиме",
+                                  "Как только ты выберешь 5 фильмов, бот начнет работать в стандартном режиме",
                              reply_markup=types.ReplyKeyboardRemove())
 
             u = next_films_collections(u)
@@ -688,7 +774,13 @@ def repeat_all_messages(message):
             alarm(str(u.tel_id) + " Cfid is 0!")
 
         f = Films.get(Films.film_id == u.cfid)
-        mark_wight = 1.5 - u.mark_wight / 2
+        result = 0
+        if u.mark_wight is not None and u.just_marked is not None:
+            mark_wight = 1.5 - u.mark_wight / 2
+        else:
+            u.mark_wight = 1
+            u.just_marked = 9
+            mark_wight = 1.5
 
         if message.text == BTN_3_SEARCH or message.text == BTN_2_SEARCH:
 
@@ -712,16 +804,16 @@ def repeat_all_messages(message):
 
             f.meanage = (f.meanage * f.likes + u.age) / (f.likes + 1)
             f.sex = (f.sex * f.likes + u.sex) / (f.likes + 1)
-            f.stars = (f.stars * (f.likes + f.dislikes) + 10 * mark_wight) / (f.likes + f.dislikes + 1)
+            f.stars = (f.stars * (f.likes + f.dislikes) + 10 * mark_wight) / (f.likes + f.dislikes + 1 * mark_wight)
             f.likes += 1
             f.selections.append(u.tel_id)
-            Dataset.create(data=datetime.now(), user_value=model_to_dict(u),
-                           film_value=model_to_dict(f), result=1)
+            result = 1
 
         if message.text == BTN_2_SEARCH:
             u.viewed.append(u.cfid)
             u.mark_wight = (u.mark_wight * u.just_marked + 2) / (u.just_marked + 1)
             f.shit -= 1
+            result = 2
 
         if message.text == BTN_3_SEARCH:
             u.liked.append(u.cfid)
@@ -729,9 +821,9 @@ def repeat_all_messages(message):
 
         if message.text == BTN_1_SEARCH or message.text == BTN_S_SEARCH:
             u.disliked.append(u.cfid)
-            f.stars = (f.stars * (f.likes + f.dislikes) + 3.5 * mark_wight) / (f.likes + f.dislikes + 1)
+            f.stars = (f.stars * (f.likes + f.dislikes) + 3.5 * mark_wight) / (f.likes + f.dislikes + 1 * mark_wight)
             f.dislikes += 1
-            u.mark_wight = (u.mark_wight * u.just_marked + -1) / (u.just_marked + 1)
+            u.mark_wight = (u.mark_wight * u.just_marked - 1) / (u.just_marked + 1)
 
             for sel in f.selections:
                 if sel in u.selections:
@@ -745,19 +837,24 @@ def repeat_all_messages(message):
                 else:
                     u.ganres[g] = 0
 
-            Dataset.create(data=datetime.now(), user_value=model_to_dict(u),
-                           film_value=model_to_dict(f), result=0)
+            result = -1
 
         if message.text == BTN_S_SEARCH:
             f.shit += 2
-            f.stars = (f.stars * (f.likes + f.dislikes) + 1 * mark_wight) / (f.likes + f.dislikes + 1)
+            f.stars = (f.stars * (f.likes + f.dislikes) + 2 * mark_wight) / (f.likes + f.dislikes + 1 * mark_wight)
             u.mark_wight = (u.mark_wight * u.just_marked - 2) / (u.just_marked + 1)
+            result = -2
 
+        u.just_marked += 1
         u = next_film(u, True)
         f.save()
 
         bot.delete_message(chat_id=message.chat.id,
                            message_id=message.message_id)
+        ujson = model_to_dict(u)
+        ujson["last_visit"] = ""
+        Dataset.create(data=datetime.now(), user_value=ujson,
+                       film_value=model_to_dict(f), result=result)
 
     elif message.text == AUTO_KILL:
         bot.send_message(message.chat.id, "Выключение")
@@ -769,6 +866,21 @@ def repeat_all_messages(message):
         bot.delete_message(chat_id=message.chat.id,
                            message_id=message.message_id)
 
+    if u.cms == 6 or (u.just_marked > 52 and u.vk_id == 0):
+        u.cms = 2
+        markup = types.InlineKeyboardMarkup(row_width=2)
+
+        markup.add(types.InlineKeyboardButton(text="Отправить", url="https://vk.com/write-186559163"),
+                   types.InlineKeyboardButton(text="Проверить", callback_data="checkvk"))
+
+        bot.send_message(message.chat.id,
+                         "Вы разметили более 50 фильмов, для защиты от дедос атак, пожалуйста, пройдите авторизацию. Это займет не более 10 секунд. "
+                         "Оправьте в группу https://vk.com/cinesearch сообщение с текстом: \n `#42621" + str(
+                             u.id) + "`",
+                         parse_mode="markdown",
+                         reply_markup=markup)
+        return
+
     Messages.create(mes_id=str(message.chat.id) + "_" + str(message.message_id), text=message.text, user=u.tel_id,
                     btime=datetime.now())
     u.save()
@@ -777,9 +889,8 @@ def repeat_all_messages(message):
 # Main Fanction
 
 if __name__ == '__main__':
-
     if "SERVER" in os.environ:
-        logger.info("Starting on server")
+        logger.info("Starting on server 2.2")
     else:
         logger.info("DEBAG Starting")
 
@@ -789,9 +900,16 @@ if __name__ == '__main__':
             bot.polling(none_stop=True)
 
         except Exception as e:
-            logger.error(str(e))
+            logger.info(str(e))
+
+            import traceback
+            traceback.print_tb(e.__traceback__)
+
+
             if "SERVER" in os.environ:
                 er -= 1
                 alarm(e)
             else:
                 break
+    if er < 1:
+        exit(-1)
