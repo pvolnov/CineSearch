@@ -33,7 +33,7 @@
   </component>
   <component name="PropertiesComponent">
     <property name="WebServerToolWindowFactoryState" value="false" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/bot" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/../../MasterBotKit/mbk_server" />
     <property name="restartRequiresConfirmation" value="false" />
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
@@ -207,6 +207,7 @@
       <workItem from="1570608299908" duration="6873000" />
       <workItem from="1570651570866" duration="1344000" />
       <workItem from="1571175424092" duration="2610000" />
+      <workItem from="1571263803919" duration="85000" />
     </task>
     <servers />
   </component>
