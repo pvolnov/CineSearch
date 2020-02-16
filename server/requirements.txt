@@ -29,7 +29,7 @@ requests==2.22.0
 rsa==4.0
 six==1.12.0
 uritemplate==3.0.0
-urllib3==1.23
+urllib3==1.24.2
 vk==2.0.2
 vk-api==11.5.0
 Werkzeug==0.15.6
