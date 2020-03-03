@@ -1,0 +1,18 @@
+[Unit]
+Description=CSpredict
+After=multi-user.target
+
+
+[Service]
+WorkingDirectory=/home/projects/CSpredict/
+User=root
+
+Environment=SERVER="VDS1"
+OOMScoreAdjust=-100
+
+ExecStart=/usr/local/bin/python3.7 /home/projects/CSpredict/app.py
+
+TimeoutSec=300
+Restart=always
+RestartSec=2
+StartLimitBurst=5

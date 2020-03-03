@@ -1,0 +1,77 @@
+@keyframes openYoutube {
+    from {
+        top: -400px;
+    }
+    to {
+        top: 10vh;
+    }
+}
+@keyframes goout {
+    from {
+        left: 0;
+    }
+    to {
+        left: -800px;
+    }
+}
+
+
+.FilmContainer{
+    margin-top: 10px;
+    position: relative;
+}
+
+.filmcover{
+    /*box-shadow: 0.2em 0.2em 6px rgba(122,122,122,0.4);*/
+    width: 100%;
+    max-height: 45vh;
+    object-fit: cover;
+    border-radius: 10px 10px 0 0;
+    z-index: -100;
+    transition: .5s;
+}
+
+.film_card_youtube{
+    position: fixed;
+    border: none;
+    animation: openYoutube 1s ease;
+    /*border-radius: 5px ;*/
+    z-index: 1;
+    width: 100%;
+}
+
+.filmcover:hover{
+    max-height: 75vh;
+}
+.block{
+    margin-top: -15px;
+    padding-top: 10px;
+}
+
+.avatarmini{
+    width: 100%;
+    max-height: 20vh;
+    object-fit: cover;
+}
+
+.actorcard{
+    width: 30vw;
+    height: 25vh;
+    margin: 10px;
+}
+.filmnamemini{
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-top: 4px;
+    padding-left: 5px;
+    padding-right: 5px;
+}
+
+.comment{
+    /*border-bottom: rgb(165, 165, 165) 1px solid;*/
+}
+hr {
+    margin-left: 5vw;
+    margin-right: 5vw;
+}

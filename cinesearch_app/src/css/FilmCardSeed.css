@@ -1,0 +1,27 @@
+.FilmCardSeed{
+    height: 20vh;
+    margin: 1.5vh;
+}
+.seedfilmbox{
+    padding-bottom: 4vh;
+}
+.ContentSeedCard{
+    padding: 0;
+    width: 60%;
+}
+.ContentSeedCard h4{
+    padding: 0;
+    margin: 0;
+}
+.ContentSeedCard p{
+    padding: 0;
+    text-overflow: ellipsis;
+    max-height: 2vh;
+}
+.avatarSeed{
+    width: 40%;
+    /*height: 100%;*/
+    /*height: auto;*/
+    /*object-fit: cover;*/
+
+}

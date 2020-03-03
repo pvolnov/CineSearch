@@ -1,0 +1,49 @@
+.avatar {
+    /*width: 40vw;*/
+    max-height: 30vh;
+    object-fit: cover;
+    display: flex;
+}
+
+.FilmCardLong {
+    margin: 3vw;
+    width: 94vw;
+}
+
+.FilmInfo {
+    display: -webkit-inline-flex;
+    display: inline-flex;
+
+}
+
+.AcideContent {
+    width: 45vw;
+    /*height: 90%;*/
+
+}
+.AcideContentText{
+    height: 100%;
+}
+.navbtn {
+    width: 100%;
+    position: relative;
+    float: bottom;
+    margin-top: -30px;
+
+}
+.btn{
+    background: linear-gradient(45deg, #26da7e 30%, #2ecf00 90%);
+}
+
+.delbtn{
+    top: -5px;
+    right: -5px;
+    z-index: 1;
+    background-color: white;
+    border: #61dafb 2px solid;
+}
+.delbatton{
+    background-color: white;
+    border-radius: 0 0 0 15px;
+    padding: 3px;
+}
