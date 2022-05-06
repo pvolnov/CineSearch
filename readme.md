@@ -1,5 +1,5 @@
 # CineSearch
-Приложение для поиска кино на вечер в несколько кликов. Рабочая версия алгоритма в интерфесе telegram бота по ссылке t.me/cinesearchbot
+An app for finding movies for the evening in a few clicks. Working version of the algorithm in the telegram bot interface at t.me/cinesearchbot
 
 ### Технологии
 + python3
